@@ -9,23 +9,36 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
+	"os"
 	"time"
 )
 
 const (
-	baseURL  = "http://localhost:8000/"
-	redisURL = "localhost:6379"
+	limitFindId = 100
+	maxUrl      = 1<<63 - 1
 )
 
 type ShortURL struct {
-	ID        int64  `json:"id"`
-	ShortPath string `json:"short_path"`
-	LongURL   string `json:"long_url"`
+	ID       int64  `json:"id"`
+	ShortURL string `json:"short_url"`
+	LongURL  string `json:"long_url"`
+}
+
+func getEnv(key, fallback string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		value = fallback
+	}
+	return value
 }
 
 var RedisClient *redis.Client
+var baseURL string
 
 func main() {
+	baseURL = getEnv("BASE_URL", "http://localhost:8000")
+	redisURL := getEnv("REDIS_URL", "localhost:6379")
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:     redisURL, // Update with your Redis server address.
 		Password: "",       // Set password if required.
@@ -35,8 +48,9 @@ func main() {
 	http.HandleFunc("/shorten", shortenURLHandler)
 	http.HandleFunc("/", redirectHandler)
 
-	log.Println("Starting server on http://localhost:8000")
-	log.Fatal(http.ListenAndServe(":8000", nil))
+	listen := getEnv("LISTEN", ":8000")
+	log.Println("Starting server on" + listen)
+	log.Fatal(http.ListenAndServe(listen, nil))
 }
 
 func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
@@ -45,9 +59,20 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	longURL := r.FormValue("url")
-	if longURL == "" {
-		http.Error(w, "URL is required", http.StatusBadRequest)
+	var requestBody struct {
+		URL string `json:"url"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&requestBody)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate URL
+	_, err = url.ParseRequestURI(requestBody.URL)
+	if err != nil {
+		http.Error(w, "Invalid URL", http.StatusBadRequest)
 		return
 	}
 
@@ -59,14 +84,14 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	shortPath := base58.Encode(idBytes)
 
 	shortURL := ShortURL{
-		ID:        id,
-		ShortPath: baseURL + "/" + shortPath,
-		LongURL:   longURL,
+		ID:       id,
+		ShortURL: baseURL + "/" + shortPath,
+		LongURL:  requestBody.URL,
 	}
 
-	err := saveURL(shortURL)
+	err = saveURL(&shortURL)
 	if err != nil {
-		http.Error(w, "Failed to save URL", http.StatusInternalServerError)
+		http.Error(w, "Failed to save URL:"+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -99,11 +124,27 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 
 func generateID() int64 {
 	rand.Seed(time.Now().UnixNano())
-	return rand.Int63n(1000000)
+	// Random number between 0 and max int64
+	return rand.Int63n(maxUrl)
 }
 
-func saveURL(shortURL ShortURL) error {
+func saveURL(shortURL *ShortURL) error {
 	key := fmt.Sprintf("url:%d", shortURL.ID)
+	found := false
+	for i := 0; i < limitFindId; i++ {
+		key := fmt.Sprintf("url:%d", shortURL.ID)
+		res, _ := RedisClient.Get(key).Result()
+		if res != "" {
+			shortURL.ID = generateID()
+		} else {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("can't find new id")
+	}
 
 	_, err := RedisClient.Set(key, shortURL.LongURL, 0).Result()
 	if err != nil {
@@ -122,7 +163,6 @@ func getURL(shortPath string) (string, error) {
 
 	id := binary.LittleEndian.Uint64(idBytes)
 	key := fmt.Sprintf("url:%d", id)
-	println(key)
 
 	LongURL, err := RedisClient.Get(key).Result()
 	if err != nil {
