@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/go-redis/redis"
-	"github.com/gorilla/mux"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/labstack/echo/v4"
 )
 
 func getEnv(key, fallback string) string {
@@ -23,6 +24,14 @@ func getEnv(key, fallback string) string {
 type URLShortener struct {
 	redisClient *redis.Client
 	baseURL     string
+}
+
+type ShortenRequest struct {
+	URL string `json:"url"`
+}
+
+type ShortenResponse struct {
+	ShortenedURL string `json:"short_url"`
 }
 
 func NewURLShortener(redisAddr, redisPassword string, redisDB int, baseURL string) *URLShortener {
@@ -39,54 +48,50 @@ func NewURLShortener(redisAddr, redisPassword string, redisDB int, baseURL strin
 }
 
 func (us *URLShortener) generateShortURL() string {
-	chars := "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789"
+	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	var sb strings.Builder
+	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < 6; i++ {
 		sb.WriteByte(chars[rand.Intn(len(chars))])
 	}
 	return sb.String()
 }
 
-func (us *URLShortener) shortenURL(w http.ResponseWriter, r *http.Request) {
-	longURL := r.FormValue("url")
+func (us *URLShortener) shortenURL(c echo.Context) error {
+	req := new(ShortenRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, "Invalid request")
+	}
+
+	longURL := req.URL
 	if longURL == "" {
-		http.Error(w, "URL is missing", http.StatusBadRequest)
-		return
+		return c.JSON(http.StatusBadRequest, "URL is missing")
 	}
 
 	shortURL := us.generateShortURL()
-	for {
-		_, err := us.redisClient.Get(shortURL).Result()
-		if err == redis.Nil {
-			break
-		}
-		shortURL = us.generateShortURL()
-	}
-	err := us.redisClient.Set(shortURL, longURL, 0).Err()
+	err := us.redisClient.Set(c.Request().Context(), shortURL, longURL, 0).Err()
 	if err != nil {
-		http.Error(w, "Failed to store URL", http.StatusInternalServerError)
-		return
+		return c.JSON(http.StatusInternalServerError, "Failed to store URL")
 	}
 
 	shortenedURL := fmt.Sprintf("%s/%s", us.baseURL, shortURL)
-	fmt.Fprintf(w, shortenedURL)
+	res := ShortenResponse{ShortenedURL: shortenedURL}
+	return c.JSON(http.StatusOK, res)
 }
 
-func (us *URLShortener) redirectURL(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	shortURL := vars["shortURL"]
+func (us *URLShortener) redirectURL(c echo.Context) error {
+	shortURL := c.Param("shortURL")
 
-	longURL, err := us.redisClient.Get(shortURL).Result()
+	longURL, err := us.redisClient.Get(c.Request().Context(), shortURL).Result()
 	if err != nil {
 		if err == redis.Nil {
-			http.NotFound(w, r)
+			return c.JSON(http.StatusNotFound, "Short URL not found")
 		} else {
-			http.Error(w, "Failed to retrieve URL", http.StatusInternalServerError)
+			return c.JSON(http.StatusInternalServerError, "Failed to retrieve URL")
 		}
-		return
 	}
 
-	http.Redirect(w, r, longURL, http.StatusFound)
+	return c.Redirect(http.StatusFound, longURL)
 }
 
 func main() {
@@ -98,11 +103,11 @@ func main() {
 	baseURL := getEnv("BASE_URL", "http://localhost:8000")
 	urlShortener := NewURLShortener(redisAddr, redisPassword, redisDB, baseURL)
 
-	r := mux.NewRouter()
-	r.HandleFunc("/shorten", urlShortener.shortenURL).Methods("POST")
-	r.HandleFunc("/{shortURL}", urlShortener.redirectURL).Methods("GET")
+	e := echo.New()
+
+	e.POST("/shorten", urlShortener.shortenURL)
+	e.GET("/:shortURL", urlShortener.redirectURL)
 
 	listenAddr := getEnv("LISTEN_ADDRESS", ":8000")
-	fmt.Println("URL Shortener is running on", listenAddr, "...")
-	log.Fatal(http.ListenAndServe(listenAddr, r))
+	log.Fatal(e.Start(listenAddr))
 }

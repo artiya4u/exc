@@ -15,13 +15,16 @@ export default function () {
         {
             method: 'POST',
             url: 'http://localhost:8000/shorten',
-            body: {
+            body: JSON.stringify({
                 "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302"
-            },
+            }),
+            params: {
+                headers: {'Content-Type': 'application/json'},
+            }
         },
         {
             method: 'GET',
-            url: 'http://localhost:8000/9tQ7B3',
+            url: 'http://localhost:8000/uivKV6',
             params: {
                 redirects: 0
             }
