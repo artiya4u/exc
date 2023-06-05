@@ -127,21 +127,21 @@ func generateID() int64 {
 func saveURL(url string) error {
 	Id := generateID()
 	key := fmt.Sprintf("url:%d", Id)
-	//found := false
-	//for i := 0; i < limitFindId; i++ {
-	//	res, _ := RedisClient.Get(key).Result()
-	//	if res != "" {
-	//		Id = generateID()
-	//		key = fmt.Sprintf("url:%d", Id)
-	//	} else {
-	//		found = true
-	//		break
-	//	}
-	//}
-	//
-	//if !found {
-	//	return fmt.Errorf("can't find new id")
-	//}
+	found := false
+	for i := 0; i < limitFindId; i++ {
+		res, _ := RedisClient.Get(key).Result()
+		if res != "" {
+			Id = generateID()
+			key = fmt.Sprintf("url:%d", Id)
+		} else {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("can't find new id")
+	}
 
 	_, err := RedisClient.Set(key, url, 0).Result()
 	if err != nil {
