@@ -12,10 +12,6 @@ import (
 	"time"
 )
 
-const (
-	baseURL = "http://localhost:8000"
-)
-
 func getEnv(key, fallback string) string {
 	value, exists := os.LookupEnv(key)
 	if !exists {
@@ -26,9 +22,10 @@ func getEnv(key, fallback string) string {
 
 type URLShortener struct {
 	redisClient *redis.Client
+	baseURL     string
 }
 
-func NewURLShortener(redisAddr, redisPassword string, redisDB int) *URLShortener {
+func NewURLShortener(redisAddr, redisPassword string, redisDB int, baseURL string) *URLShortener {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: redisPassword,
@@ -37,6 +34,7 @@ func NewURLShortener(redisAddr, redisPassword string, redisDB int) *URLShortener
 
 	return &URLShortener{
 		redisClient: redisClient,
+		baseURL:     baseURL,
 	}
 }
 
@@ -70,7 +68,7 @@ func (us *URLShortener) shortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortenedURL := fmt.Sprintf("%s/%s", baseURL, shortURL)
+	shortenedURL := fmt.Sprintf("%s/%s", us.baseURL, shortURL)
 	fmt.Fprintf(w, shortenedURL)
 }
 
@@ -97,7 +95,8 @@ func main() {
 	redisPassword := getEnv("REDIS_PASSWORD", "")
 	redisDB := 0
 
-	urlShortener := NewURLShortener(redisAddr, redisPassword, redisDB)
+	baseURL := getEnv("BASE_URL", "http://localhost:8000")
+	urlShortener := NewURLShortener(redisAddr, redisPassword, redisDB, baseURL)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/shorten", urlShortener.shortenURL).Methods("POST")
