@@ -37,6 +37,7 @@ var RedisClient *redis.Client
 var baseURL string
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	baseURL = getEnv("BASE_URL", "http://localhost:8000")
 	redisURL := getEnv("REDIS_URL", "localhost:6379")
 	RedisClient = redis.NewClient(&redis.Options{
@@ -123,7 +124,6 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateID() int64 {
-	rand.Seed(time.Now().UnixNano())
 	// Random number between 0 and max int64
 	return rand.Int63n(maxUrl)
 }
@@ -171,6 +171,11 @@ func getURL(shortPath string) (string, error) {
 
 	if len(LongURL) == 0 {
 		return "", fmt.Errorf("URL not found")
+	}
+	keyIncr := fmt.Sprintf("count:%d", id)
+	_, err = RedisClient.Incr(keyIncr).Result()
+	if err != nil {
+		return "", err
 	}
 
 	return LongURL, nil
