@@ -3,14 +3,13 @@ package main
 import (
 	"fmt"
 	"github.com/go-redis/redis"
+	"github.com/gorilla/mux"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -42,9 +41,8 @@ func NewURLShortener(redisAddr, redisPassword string, redisDB int) *URLShortener
 }
 
 func (us *URLShortener) generateShortURL() string {
-	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	chars := "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789"
 	var sb strings.Builder
-	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < 6; i++ {
 		sb.WriteByte(chars[rand.Intn(len(chars))])
 	}
@@ -59,6 +57,13 @@ func (us *URLShortener) shortenURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shortURL := us.generateShortURL()
+	for {
+		_, err := us.redisClient.Get(shortURL).Result()
+		if err == redis.Nil {
+			break
+		}
+		shortURL = us.generateShortURL()
+	}
 	err := us.redisClient.Set(shortURL, longURL, 0).Err()
 	if err != nil {
 		http.Error(w, "Failed to store URL", http.StatusInternalServerError)
@@ -87,6 +92,7 @@ func (us *URLShortener) redirectURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	redisAddr := getEnv("REDIS_ADDRESS", "localhost:6379")
 	redisPassword := getEnv("REDIS_PASSWORD", "")
 	redisDB := 0
