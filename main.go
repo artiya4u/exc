@@ -69,9 +69,16 @@ func (us *URLShortener) shortenURL(c echo.Context) error {
 	}
 
 	shortURL := us.generateShortURL()
-	set, err := us.redisClient.SetNX(c.Request().Context(), shortURL, longURL, 0).Result()
-	if err != nil || !set {
-		return c.JSON(http.StatusInternalServerError, "Failed to store URL")
+	for {
+		set, err := us.redisClient.SetNX(c.Request().Context(), shortURL, longURL, 0).Result()
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, "Failed to store URL")
+		}
+		if set {
+			break
+		} else {
+			shortURL = us.generateShortURL()
+		}
 	}
 
 	shortenedURL := fmt.Sprintf("%s/%s", us.baseURL, shortURL)
