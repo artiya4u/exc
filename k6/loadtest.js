@@ -11,30 +11,17 @@ export let options = {
 }
 
 export default function () {
-    const url = 'http://localhost:8000/shorten'
-    const data = {
-        "url": "https://mirror.xyz/myalphadrops.eth/o3NTGGOJFkoqR7IzFcWbTmL5-mLwUArYQ_K0XpwC88M"
-    }
-    let res = http.post(url, JSON.stringify(data), {
-        headers: {'Content-Type': 'application/json'},
-    });
-
-    check(res, {'success': (r) => r.status === 200})
-
     const responses = http.batch([
         {
             method: 'POST',
-            url: 'https://httpbin.test.k6.io/post',
+            url: 'http://localhost:8000/shorten',
             body: {
-                "url": "https://mirror.xyz/myalphadrops.eth/o3NTGGOJFkoqR7IzFcWbTmL5-mLwUArYQ_K0XpwC88M"
-            },
-            params: {
-                headers: {'Content-Type': 'application/json'},
+                "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302"
             },
         },
         {
             method: 'GET',
-            url: 'http://localhost:8000/6iDv7Ckn2oQ',
+            url: 'http://localhost:8000/9tQ7B3',
             params: {
                 redirects: 0
             }
@@ -44,6 +31,6 @@ export default function () {
         'shorten success': (res) => res.status === 200,
     });
     check(responses[1], {
-        'redirect success': (res) => res.status === 307,
+        'redirect success': (res) => res.status === 302,
     });
 }
