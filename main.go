@@ -57,17 +57,23 @@ func (us *URLShortener) generateShortURL() string {
 	return sb.String()
 }
 
-func (us *URLShortener) shortenURL(c echo.Context) error {
+func (us *URLShortener) shortenURLPost(c echo.Context) error {
 	req := new(ShortenRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, "Invalid request")
 	}
+	return us.shortenURL(req.URL, c)
+}
 
-	longURL := req.URL
+func (us *URLShortener) shortenURLGet(c echo.Context) error {
+	URL := c.Param("URL")
+	return us.shortenURL(URL, c)
+}
+
+func (us *URLShortener) shortenURL(longURL string, c echo.Context) error {
 	if longURL == "" {
 		return c.JSON(http.StatusBadRequest, "URL is missing")
 	}
-
 	shortURL := us.generateShortURL()
 	for {
 		set, err := us.redisClient.SetNX(c.Request().Context(), shortURL, longURL, 0).Result()
@@ -112,7 +118,8 @@ func main() {
 
 	e := echo.New()
 
-	e.POST("/shorten", urlShortener.shortenURL)
+	e.POST("/shorten", urlShortener.shortenURLPost)
+	e.GET("/shorten/:URL", urlShortener.shortenURLGet)
 	e.GET("/:shortURL", urlShortener.redirectURL)
 
 	listenAddr := getEnv("LISTEN_ADDRESS", ":8000")
