@@ -20,9 +20,7 @@ const (
 )
 
 type ShortURL struct {
-	ID       int64  `json:"id"`
 	ShortURL string `json:"short_url"`
-	LongURL  string `json:"long_url"`
 }
 
 func getEnv(key, fallback string) string {
@@ -85,12 +83,10 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	shortPath := base58.Encode(idBytes)
 
 	shortURL := ShortURL{
-		ID:       id,
 		ShortURL: baseURL + "/" + shortPath,
-		LongURL:  requestBody.URL,
 	}
 
-	err = saveURL(&shortURL)
+	err = saveURL(requestBody.URL)
 	if err != nil {
 		http.Error(w, "Failed to save URL:"+err.Error(), http.StatusInternalServerError)
 		return
@@ -128,25 +124,26 @@ func generateID() int64 {
 	return rand.Int63n(maxUrl)
 }
 
-func saveURL(shortURL *ShortURL) error {
-	key := fmt.Sprintf("url:%d", shortURL.ID)
-	found := false
-	for i := 0; i < limitFindId; i++ {
-		key := fmt.Sprintf("url:%d", shortURL.ID)
-		res, _ := RedisClient.Get(key).Result()
-		if res != "" {
-			shortURL.ID = generateID()
-		} else {
-			found = true
-			break
-		}
-	}
+func saveURL(url string) error {
+	Id := generateID()
+	key := fmt.Sprintf("url:%d", Id)
+	//found := false
+	//for i := 0; i < limitFindId; i++ {
+	//	res, _ := RedisClient.Get(key).Result()
+	//	if res != "" {
+	//		Id = generateID()
+	//		key = fmt.Sprintf("url:%d", Id)
+	//	} else {
+	//		found = true
+	//		break
+	//	}
+	//}
+	//
+	//if !found {
+	//	return fmt.Errorf("can't find new id")
+	//}
 
-	if !found {
-		return fmt.Errorf("can't find new id")
-	}
-
-	_, err := RedisClient.Set(key, shortURL.LongURL, 0).Result()
+	_, err := RedisClient.Set(key, url, 0).Result()
 	if err != nil {
 		return err
 	}
