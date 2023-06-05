@@ -48,7 +48,7 @@ func NewURLShortener(redisAddr, redisPassword string, redisDB int, baseURL strin
 }
 
 func (us *URLShortener) generateShortURL() string {
-	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	chars := "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789"
 	var sb strings.Builder
 	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < 6; i++ {
@@ -69,8 +69,8 @@ func (us *URLShortener) shortenURL(c echo.Context) error {
 	}
 
 	shortURL := us.generateShortURL()
-	err := us.redisClient.Set(c.Request().Context(), shortURL, longURL, 0).Err()
-	if err != nil {
+	set, err := us.redisClient.SetNX(c.Request().Context(), shortURL, longURL, 0).Result()
+	if err != nil || !set {
 		return c.JSON(http.StatusInternalServerError, "Failed to store URL")
 	}
 
