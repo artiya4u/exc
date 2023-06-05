@@ -24,6 +24,10 @@ export default function () {
         },
         {
             method: 'GET',
+            url: 'http://localhost:8000/shorten/https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302',
+        },
+        {
+            method: 'GET',
             url: 'http://localhost:8000/uivKV6',
             params: {
                 redirects: 0
@@ -31,9 +35,12 @@ export default function () {
         }
     ]);
     check(responses[0], {
-        'shorten success': (res) => res.status === 200,
+        'shorten post success': (res) => res.status === 200,
     });
     check(responses[1], {
+        'shorten get success': (res) => res.status === 200,
+    });
+    check(responses[2], {
         'redirect success': (res) => res.status === 302,
     });
 }
