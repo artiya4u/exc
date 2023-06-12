@@ -12,7 +12,7 @@ services:
       - ~/redis-data/:/data
 
   exc:
-    image: localhost:5000/exc:latest
+    image: exc.cx/exc:latest
     environment:
       - REDIS_ADDRESS=redis:6379
       - BASE_URL=https://exc.cx
