@@ -1,0 +1,26 @@
+services:
+  redis:
+    image: redis/redis-stack-server:latest
+    command: redis-stack-server --protected-mode no --port 6379
+    restart: always
+    ports:
+      - 6379:6379
+    logging:
+      options:
+        max-size: "50m"
+    volumes:
+      - ~/redis-data/:/data
+
+  exc:
+    image: localhost:5000/exc:latest
+    environment:
+      - REDIS_ADDRESS=redis://redis:6379/1
+      - BASE_URL=https://exc.cx
+    restart: always
+    ports:
+      - "8000:8000"
+    logging:
+      options:
+        max-size: "50m"
+    depends_on:
+      - redis
