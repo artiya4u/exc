@@ -51,7 +51,7 @@ func (us *URLShortener) generateShortURL() string {
 	chars := "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789"
 	var sb strings.Builder
 	rand.Seed(time.Now().UnixNano())
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 4; i++ {
 		sb.WriteByte(chars[rand.Intn(len(chars))])
 	}
 	return sb.String()
