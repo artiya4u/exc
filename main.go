@@ -107,6 +107,10 @@ func (us *URLShortener) redirectURL(c echo.Context) error {
 	return c.Redirect(http.StatusFound, longURL)
 }
 
+func (us *URLShortener) health(c echo.Context) error {
+	return c.String(http.StatusOK, "OK")
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	redisAddr := getEnv("REDIS_ADDRESS", "localhost:6379")
@@ -118,6 +122,7 @@ func main() {
 
 	e := echo.New()
 
+	e.GET("/health", urlShortener.health)
 	e.POST("/shorten", urlShortener.shortenURLPost)
 	e.GET("/shorten/:URL", urlShortener.shortenURLGet)
 	e.GET("/:shortURL", urlShortener.redirectURL)
